@@ -1,0 +1,150 @@
+name: Patch Bitwarden for Iceraven OLED
+
+# Scheduled + manual only: secrets must never be exposed to fork pull requests.
+on:
+  schedule:
+    - cron: '23 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bitwarden-iceraven-oled-patch
+  cancel-in-progress: false
+
+env:
+  OLED_FP: '79:13:7C:D3:F5:02:FD:9D:F9:B0:BB:6A:97:D5:18:FA:28:34:5F:03:FF:F0:CE:FA:40:9F:68:9A:BB:39:E2:14'
+  SIGNER_SHA256: 'e1299fd6fcf4da527dd53735b56127e8ea922a321128123b9c32d619bba1d835'
+  SIGNER_URL: 'https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar'
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve newest upstream release with a universal APK
+        id: upstream
+        run: |
+          set -euo pipefail
+          tag=$(curl -fsSL 'https://api.github.com/repos/bitwarden/android/releases?per_page=30' \
+            | jq -r '[.[] | select(any(.assets[]?; .name == "com.x8bit.bitwarden.apk")) | .tag_name][0] // empty')
+          test -n "$tag" || { echo "no upstream release with a universal APK"; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Upstream: $tag"
+
+      - name: Skip if already published
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view "patched-${{ steps.upstream.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Already published: patched-${{ steps.upstream.outputs.tag }}"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify Iceraven OLED still uses the pinned certificate
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          url=$(curl -fsSL 'https://api.github.com/repos/GoodyOG/Iceraven-OLED/releases/latest' \
+            | jq -r '[.assets[] | select(.name | endswith(".apk")) | .browser_download_url][0] // empty')
+          test -n "$url" || { echo "no OLED APK asset"; exit 1; }
+          curl -fsSL -o iceraven-oled.apk "$url"
+          python3 apkcert.py iceraven-oled.apk | tee oled-certs.txt
+          grep -qi "$OLED_FP" oled-certs.txt || {
+            echo "Iceraven OLED signing key changed - patch needs updating"; exit 1;
+          }
+
+      - name: Download and verify the stock Bitwarden APK
+        if: steps.check.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.upstream.outputs.tag }}
+        run: |
+          set -euo pipefail
+          base="https://github.com/bitwarden/android/releases/download/$TAG"
+          curl -fsSL -o bitwarden.apk "$base/com.x8bit.bitwarden.apk"
+          curl -fsSL -o upstream.sha256 "$base/com.x8bit.bitwarden.apk-sha256.txt"
+          expected=$(awk 'NR==1 {print $1}' upstream.sha256)
+          actual=$(sha256sum bitwarden.apk | awk '{print $1}')
+          test -n "$expected" && test "$expected" = "$actual"
+          echo "Upstream checksum verified: $actual"
+
+      - uses: actions/setup-java@v4
+        if: steps.check.outputs.skip != 'true'
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Patch the allowlist
+        if: steps.check.outputs.skip != 'true'
+        run: python3 patch_allowlist.py
+
+      - name: Align and sign with the repository key
+        if: steps.check.outputs.skip != 'true'
+        env:
+          KS_B64: ${{ secrets.KS_B64 }}
+          KS_PASS: ${{ secrets.KS_PASS }}
+          KS_KEY_PASS: ${{ secrets.KS_KEY_PASS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "${KS_B64:-}" && test -n "${KS_PASS:-}" && test -n "${KS_KEY_PASS:-}" \
+            || { echo "missing KS_B64 / KS_PASS / KS_KEY_PASS Actions secrets"; exit 1; }
+          printf '%s' "$KS_B64" | base64 -d > patch.keystore
+          curl -fsSL -o uber-apk-signer.jar "$SIGNER_URL"
+          printf '%s  %s\n' "$SIGNER_SHA256" uber-apk-signer.jar | sha256sum -c -
+          mkdir -p signed
+          java -jar uber-apk-signer.jar -a bitwarden-patched-unsigned.apk -o signed \
+            --allowResign --ks patch.keystore --ksAlias iceravenbw \
+            --ksPass "$KS_PASS" --ksKeyPass "$KS_KEY_PASS"
+          mv signed/bitwarden-patched-aligned-signed.apk Bitwarden-IceravenOLED-patched.apk
+          rm -f patch.keystore
+
+      - name: Verify the patched APK
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          echo "== certificate =="
+          python3 apkcert.py Bitwarden-IceravenOLED-patched.apk | tee patched-certs.txt
+          grep -qi '38:8F:5D:FF:6B:68:B4:63:77:AE:D3:16:7D:4C:CF:99:3F:18:58:3C:D4:FE:0E:EE:16:90:A1:C8:4E:4B:F8:28' patched-certs.txt
+          echo "== allowlist entry =="
+          unzip -p Bitwarden-IceravenOLED-patched.apk assets/fido2_privileged_community.json \
+            | jq -e --arg fp "$OLED_FP" \
+              'any(.apps[]; .info.package_name == "io.github.forkmaintainers.iceraven"
+                   and any(.info.signatures[]; .cert_fingerprint_sha256 == $fp))' >/dev/null
+          sha256sum Bitwarden-IceravenOLED-patched.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish release
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.upstream.outputs.tag }}
+          UPSTREAM_SHA: ${{ steps.check.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+          patched_sha=$(awk '{print $1}' SHA256SUMS.txt)
+          upstream_sha=$(awk 'NR==1 {print $1}' upstream.sha256)
+          cat > release-notes.md <<EOF
+          Unofficial patch of Bitwarden **$TAG** for [Iceraven OLED](https://github.com/GoodyOG/Iceraven-OLED).
+
+          The only change is one fingerprint in \`assets/fido2_privileged_community.json\`:
+          \`9C:0D:22:37:9F:48:7B:70:A4:F9:F8:BE:C0:17:3C:F9:1A:16:44:F0:8F:93:38:5B:5B:78:2C:E3:76:60:BA:81\`
+          → \`$OLED_FP\` (the OLED fork's certificate).
+
+          - Upstream APK SHA-256: \`$upstream_sha\`
+          - Patched APK SHA-256: \`$patched_sha\`
+          - Signing certificate: \`38:8F:5D:FF:6B:68:B4:63:77:AE:D3:16:7D:4C:CF:99:3F:18:58:3C:D4:FE:0E:EE:16:90:A1:C8:4E:4B:F8:28\`
+
+          **Use at your own risk.** This is a third-party-signed password manager. See the
+          [README](https://github.com/irmatt/bitwarden-iceraven-oled-patched#readme) for
+          verification steps, self-patching instructions and the uninstall/data-loss warning.
+          EOF
+          gh release create "patched-$TAG" Bitwarden-IceravenOLED-patched.apk SHA256SUMS.txt \
+            --title "Bitwarden $TAG patched for Iceraven OLED" \
+            --notes-file release-notes.md

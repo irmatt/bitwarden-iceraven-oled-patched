@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.apk
+*.keystore
+*.jar
+signed/
+*.sha256
+upstream.sha256
+release-notes.md
+patch.keystore
