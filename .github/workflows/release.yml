@@ -176,6 +176,15 @@ jobs:
               fdroid/config.yml.in > fdroid/config.yml
           chmod 600 fdroid/config.yml fdroid/repo-key.p12
           (cd fdroid && fdroid update --create-metadata)
+
+          # Classic icon paths too: some clients do not use the v2 locale paths.
+          bw_code=$(jq -r '.packages["com.x8bit.bitwarden"][0].versionCode' fdroid/repo/index-v1.json)
+          ic_code=$(jq -r '.packages["io.github.forkmaintainers.iceraven"][0].versionCode' fdroid/repo/index-v1.json)
+          cp fdroid/repo-icon.png fdroid/repo/icons/icon.png
+          cp fdroid/repo/com.x8bit.bitwarden/en-US/icon.png "fdroid/repo/icons/com.x8bit.bitwarden.$bw_code.png"
+          cp fdroid/repo/com.x8bit.bitwarden/en-US/icon.png "fdroid/repo/icons/com.x8bit.bitwarden_$bw_code.png"
+          cp fdroid/repo/io.github.forkmaintainers.iceraven/en-US/icon.png "fdroid/repo/icons/io.github.forkmaintainers.iceraven.$ic_code.png"
+          cp fdroid/repo/io.github.forkmaintainers.iceraven/en-US/icon.png "fdroid/repo/icons/io.github.forkmaintainers.iceraven_$ic_code.png"
           echo "== generated files =="
           ls -lh fdroid/repo/
 
