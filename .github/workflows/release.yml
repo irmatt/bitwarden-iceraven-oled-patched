@@ -167,9 +167,10 @@ jobs:
           pipx install fdroidserver
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          mkdir -p fdroid/repo fdroid/metadata
+          mkdir -p fdroid/repo fdroid/metadata fdroid/repo/icons
           cp Bitwarden-IceravenOLED-patched.apk fdroid/repo/bitwarden-patched.apk
           cp iceraven-oled.apk fdroid/repo/iceraven-oled.apk
+          cp fdroid/repo-icon.png fdroid/repo/icons/icon.png
           printf '%s' "$FDROID_REPO_KEY_B64" | base64 -d > fdroid/repo-key.p12
           sed -e "s|__KEYPASS__|$FDROID_REPO_PASS|g" \
               -e "s|__KEYSTORE__|$PWD/fdroid/repo-key.p12|g" \
