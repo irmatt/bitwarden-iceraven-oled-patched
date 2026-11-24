@@ -184,9 +184,9 @@ jobs:
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo "missing CLOUDFLARE_API_TOKEN"; exit 1; }
           npm install -g wrangler
-          for f in fdroid/repo/*; do
-            [ -f "$f" ] || continue
-            echo "uploading $(basename "$f")"
-            wrangler r2 object put "fdroid-irmatt/fdroid/repo/$(basename "$f")" \
+          while IFS= read -r f; do
+            key=${f#fdroid/repo/}
+            echo "uploading $key"
+            wrangler r2 object put "fdroid-irmatt/fdroid/repo/$key" \
               --file "$f" --remote
-          done
+          done < <(find fdroid/repo -type f | sort)
