@@ -1,0 +1,16 @@
+repo_url: https://fdroid.irmatt.com/fdroid/repo
+repo_name: irmatt's patched Android apps
+repo_description: >-
+  Unofficial binary repository: Bitwarden patched to trust Iceraven OLED
+  (GoodyOG) for passkeys, plus an unofficial mirror of the Iceraven OLED
+  browser. Verify the repository fingerprint and each APK signature. See
+  https://github.com/irmatt/bitwarden-iceraven-oled-patched for the patch
+  source and warnings.
+repo_keyalias: fdroidrepo
+keystore: __KEYSTORE__
+keystorepass: __KEYPASS__
+keypass: __KEYPASS__
+keydname: "CN=irmatt F-Droid repo, O=Personal, C=CA"
+archive_older: 0
+repo_maxage: 0
+make_current_version_link: false

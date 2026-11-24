@@ -1,0 +1,19 @@
+AuthorName: GoodyOG (mirror by irmatt)
+Categories:
+  - Internet
+  - Browser
+Description: |
+  Unofficial mirror of GoodyOG's Iceraven OLED: the arm64-v8a Iceraven
+  browser with an AMOLED dark theme. The APK is byte-for-byte the release
+  asset from https://github.com/GoodyOG/Iceraven-OLED and keeps GoodyOG's
+  signature.
+
+  Iceraven itself is based on Firefox/Fenix and upstream Iceraven by
+  fork-maintainers. See the project README for why Bitwarden's browser
+  allowlist needs the OLED fork's certificate rather than upstream's.
+IssueTracker: https://github.com/GoodyOG/Iceraven-OLED/issues
+License: MPL-2.0
+Name: Iceraven OLED (GoodyOG mirror)
+SourceCode: https://github.com/GoodyOG/Iceraven-OLED
+Summary: Iceraven browser with an AMOLED dark theme, arm64-v8a
+WebSite: https://github.com/GoodyOG/Iceraven-OLED

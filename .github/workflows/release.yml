@@ -21,6 +21,8 @@ env:
 jobs:
   patch:
     runs-on: ubuntu-latest
+    env:
+      FDROID_ENABLED: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -148,3 +150,43 @@ jobs:
           gh release create "patched-$TAG" Bitwarden-IceravenOLED-patched.apk SHA256SUMS.txt \
             --title "Bitwarden $TAG patched for Iceraven OLED" \
             --notes-file release-notes.md
+
+      - name: Build the F-Droid repository index
+        if: env.FDROID_ENABLED == 'true' && steps.check.outputs.skip != 'true'
+        env:
+          FDROID_REPO_KEY_B64: ${{ secrets.FDROID_REPO_KEY_B64 }}
+          FDROID_REPO_PASS: ${{ secrets.FDROID_REPO_PASS }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apksigner pipx
+          pipx install fdroidserver
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          mkdir -p fdroid/repo fdroid/metadata
+          cp Bitwarden-IceravenOLED-patched.apk fdroid/repo/bitwarden-patched.apk
+          cp iceraven-oled.apk fdroid/repo/iceraven-oled.apk
+          printf '%s' "$FDROID_REPO_KEY_B64" | base64 -d > fdroid/repo-key.p12
+          sed -e "s|__KEYPASS__|$FDROID_REPO_PASS|g" \
+              -e "s|__KEYSTORE__|$PWD/fdroid/repo-key.p12|g" \
+              fdroid/config.yml.in > fdroid/config.yml
+          chmod 600 fdroid/config.yml fdroid/repo-key.p12
+          (cd fdroid && fdroid update --create-metadata)
+          echo "== generated files =="
+          ls -lh fdroid/repo/
+
+      - name: Publish the repo to Cloudflare R2
+        if: env.FDROID_ENABLED == 'true' && steps.check.outputs.skip != 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo "missing CLOUDFLARE_API_TOKEN"; exit 1; }
+          npm install -g wrangler
+          for f in fdroid/repo/*; do
+            [ -f "$f" ] || continue
+            echo "uploading $(basename "$f")"
+            wrangler r2 object put "fdroid-irmatt/fdroid/repo/$(basename "$f")" \
+              --file "$f" --remote
+          done

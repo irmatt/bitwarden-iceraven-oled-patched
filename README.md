@@ -97,3 +97,18 @@ You do not need this project's build or signing key. From a stock Bitwarden univ
 Bitwarden ships roughly every two weeks (25 universal releases in the 12 months to Nov 2026),
 so expect a new patched build about twice a month. If you fork this repo you must supply your own
 `KS_B64`, `KS_PASS` and `KS_KEY_PASS` Actions secrets; the workflow never prints them.
+
+## Droid-ify / F-Droid source
+
+The same workflow also publishes a signed **binary F-Droid repository** to Cloudflare R2. Add this
+URL in Droid-ify (Manage Repositories → +):
+
+```
+https://fdroid.irmatt.com/fdroid/repo?fingerprint=A4:32:08:A7:7C:E0:AE:95:FA:27:69:23:F9:9A:1D:F0:21:C3:15:52:AB:52:D5:78:8C:D5:41:4A:F9:85:36:16
+```
+
+It contains two apps: the patched Bitwarden above and an unofficial **Iceraven OLED** mirror
+(GoodyOG), both with their original/own APK signatures. The repository index is signed with a key
+**separate** from the APK signing key; the fingerprint above is that repo key, not the Bitwarden
+certificate. Droid-ify verifies the index signature against it, then each APK against its own
+signer. The R2 bucket is served at `fdroid.irmatt.com` in the same Cloudflare account as `irmatt.com`.

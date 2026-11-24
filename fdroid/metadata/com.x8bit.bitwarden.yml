@@ -1,0 +1,19 @@
+AuthorName: Bitwarden (rebuild by irmatt)
+Categories:
+  - Security
+Description: |
+  Unofficial rebuild of the official Bitwarden Android app with one change:
+  the FIDO2/passkey browser allowlist now trusts the Iceraven OLED build by
+  GoodyOG instead of the upstream Iceraven signing key.
+
+  This APK is signed by this repository's own key, not by Bitwarden. Verify
+  the fingerprints in the project README before installing. It cannot be
+  updated in place over a Play Store install: back up or sync your vault,
+  uninstall the old app, then install this one. Never replace it with the
+  stock Bitwarden or the Iceraven passkey fix will be lost.
+IssueTracker: https://github.com/irmatt/bitwarden-iceraven-oled-patched/issues
+License: GPL-3.0
+Name: Bitwarden (Iceraven OLED patch)
+SourceCode: https://github.com/irmatt/bitwarden-iceraven-oled-patched
+Summary: Bitwarden rebuilt to trust Iceraven OLED for passkeys
+WebSite: https://github.com/irmatt/bitwarden-iceraven-oled-patched
